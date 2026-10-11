@@ -7,15 +7,16 @@
 <style>
   :root {
     --bg: #f6f5f2; --panel: #ffffff; --text: #1d1d1f; --muted: #6b6b70;
-    --accent: #2f6fed; --border: #e2e0db; --danger: #c43d3d;
+    --accent: #2f6fed; --border: #e2e0db; --danger: #c43d3d; --good: #1f8a4c;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #151517; --panel: #222226; --text: #f2f2f4; --muted: #9a9aa2;
-      --accent: #6b9bff; --border: #34343a; --danger: #ff6b6b;
+      --accent: #6b9bff; --border: #34343a; --danger: #ff6b6b; --good: #4fd18b;
     }
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   body {
     margin: 0; background: var(--bg); color: var(--text);
     font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -24,7 +25,14 @@
   h1 { font-size: 1.4rem; margin: 0 0 16px; }
   h2 { font-size: 1rem; margin: 32px 0 12px; color: var(--muted); font-weight: 600; }
 
-  .stage { perspective: 1200px; }
+  .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .toolbar select { flex: 1; min-width: 140px; }
+  .check { display: flex; gap: 6px; align-items: center; cursor: pointer; white-space: nowrap; }
+  .check input { width: auto; margin: 0; }
+  .stats { color: var(--muted); font-size: .85rem; margin-left: auto; }
+
+  /* Card */
+  .stage { perspective: 1200px; margin-top: 8px; }
   .lift { transition: transform .25s ease; }
   .lift:hover { transform: translateY(-3px); }
   .card {
@@ -49,18 +57,29 @@
   .face.back .label { color: var(--accent); }
   .face .content { font-size: 1.35rem; white-space: pre-wrap; word-break: break-word; }
   .face .hint { margin-top: 16px; font-size: .8rem; color: var(--muted); }
-  @media (prefers-reduced-motion: reduce) {
-    .card, .lift { transition: none; }
-  }
 
   .controls { display: flex; gap: 8px; justify-content: center; align-items: center; margin-top: 14px; flex-wrap: wrap; }
   .counter { color: var(--muted); min-width: 64px; text-align: center; }
 
-  button {
+  .rating {
+    display: flex; gap: 10px; justify-content: center; margin-top: 12px;
+    opacity: 0; transform: translateY(-6px); visibility: hidden;
+    transition: opacity .25s, transform .25s, visibility 0s .25s;
+  }
+  .rating.show { opacity: 1; transform: none; visibility: visible; transition-delay: 0s; }
+  .rating button { flex: 1; max-width: 180px; padding: 10px; font-weight: 600; }
+  .btn-missed { color: var(--danger); border-color: var(--danger); }
+  .btn-got { color: var(--good); border-color: var(--good); }
+  kbd {
+    font: .7rem ui-monospace, monospace; border: 1px solid currentColor; border-radius: 4px;
+    padding: 0 4px; margin-left: 6px; opacity: .6;
+  }
+
+  button, select {
     font: inherit; padding: 8px 14px; border-radius: 8px; cursor: pointer;
     border: 1px solid var(--border); background: var(--panel); color: var(--text);
   }
-  button:hover { border-color: var(--accent); }
+  button:hover, select:hover { border-color: var(--accent); }
   button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
   button.danger { color: var(--danger); }
   button:disabled { opacity: .4; cursor: default; }
@@ -71,7 +90,9 @@
     border: 1px solid var(--border); background: var(--panel); color: var(--text);
   }
   textarea { resize: vertical; min-height: 64px; }
-  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  #bulkInput { min-height: 120px; font-family: ui-monospace, monospace; font-size: .9rem; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .note { color: var(--muted); font-size: .85rem; }
 
   ul { list-style: none; padding: 0; margin: 0; }
   li {
@@ -82,14 +103,37 @@
   li .q { font-weight: 600; }
   li .a { color: var(--muted); }
   li .text { min-width: 0; word-break: break-word; }
-  li .actions { display: flex; gap: 6px; flex-shrink: 0; }
+  li .actions { display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
   li button { padding: 4px 10px; font-size: .85rem; }
+  .badge { font-size: .7rem; padding: 2px 8px; border-radius: 99px; border: 1px solid; white-space: nowrap; }
+  .badge.got { color: var(--good); }
+  .badge.missed { color: var(--danger); }
+  .badge.new { color: var(--muted); }
   .empty { color: var(--muted); text-align: center; padding: 24px 0; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .card, .lift, .rating { transition: none; }
+  }
 </style>
 </head>
 <body>
 <main>
   <h1>Flashcards</h1>
+
+  <div class="toolbar">
+    <select id="deckSel" aria-label="Deck"></select>
+    <button id="newDeckBtn">New deck</button>
+    <button id="renameDeckBtn">Rename</button>
+    <button id="deleteDeckBtn" class="danger">Delete</button>
+  </div>
+  <div class="toolbar">
+    <select id="modeSel" aria-label="Study mode">
+      <option value="all">All cards</option>
+      <option value="missed">Missed only</option>
+    </select>
+    <label class="check"><input type="checkbox" id="reverseChk"> Answer first</label>
+    <span class="stats" id="stats"></span>
+  </div>
 
   <section id="study">
     <div class="stage" id="stage">
@@ -101,18 +145,28 @@
             <div class="hint" id="frontHint">Click or press Space to flip</div>
           </div>
           <div class="face back">
-            <div class="label">Answer</div>
+            <div class="label" id="backLabel">Answer</div>
             <div class="content" id="backContent"></div>
-            <div class="hint">Click or press Space to flip back</div>
+            <div class="hint">Did you get it right?</div>
           </div>
         </div>
       </div>
     </div>
-    <div class="controls">
+
+    <div class="rating" id="rating">
+      <button id="missBtn" class="btn-missed">Missed it<kbd>1</kbd></button>
+      <button id="gotBtn" class="btn-got">Got it<kbd>2</kbd></button>
+    </div>
+
+    <div class="controls" id="navControls">
       <button id="prevBtn" aria-label="Previous">&larr; Prev</button>
       <span class="counter" id="counter">0 / 0</span>
       <button id="nextBtn" aria-label="Next">Next &rarr;</button>
       <button id="shuffleBtn">Shuffle</button>
+    </div>
+    <div class="controls" id="doneActions" hidden>
+      <button id="restartBtn" class="primary">Go again</button>
+      <button id="studyMissedBtn">Study missed only</button>
     </div>
   </section>
 
@@ -126,66 +180,184 @@
     </div>
   </form>
 
-  <h2>All cards</h2>
+  <h2>Paste many</h2>
+  <div class="row" style="flex-direction: column; align-items: stretch;">
+    <textarea id="bulkInput" placeholder="One card per line:
+What is a pod? | The smallest deployable unit in Kubernetes
+Port for HTTPS | 443"></textarea>
+    <div class="row">
+      <button id="bulkBtn" class="primary">Add all</button>
+      <span class="note" id="bulkMsg">Separate question and answer with | or a tab (pasting from a spreadsheet works).</span>
+    </div>
+  </div>
+
+  <h2>Cards in this deck</h2>
   <ul id="list"></ul>
+  <div class="row" style="margin-top: 10px;">
+    <button id="resetProgressBtn">Reset progress</button>
+  </div>
 
   <h2>Backup</h2>
   <div class="row">
-    <button id="exportBtn">Export JSON</button>
+    <button id="exportBtn">Export all decks</button>
     <button id="importBtn">Import JSON</button>
     <input type="file" id="importFile" accept="application/json" hidden>
   </div>
 </main>
 
 <script>
-const KEY = "flashcards.v1";
-let cards = load();
-let order = cards.map((_, i) => i);
-let pos = 0;
+const KEY = "flashcards.v2";
+const $ = id => document.getElementById(id);
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+let state = load();
+let session = { ids: [], pos: 0, done: false };
 let flipped = false;
+let animating = false;
 let editingId = null;
 
+/* ---------- Storage ---------- */
+
 function load() {
-  try { return JSON.parse(localStorage.getItem(KEY)) || []; }
-  catch { return []; }
+  try {
+    const s = JSON.parse(localStorage.getItem(KEY));
+    if (s && Array.isArray(s.decks) && s.decks.length) return s;
+  } catch {}
+  // First run, or migrating from the single-deck version
+  let old = [];
+  try { old = JSON.parse(localStorage.getItem("flashcards.v1")) || []; } catch {}
+  const d = {
+    id: uid(), name: "My cards",
+    cards: old.filter(c => c && c.q && c.a)
+              .map(c => ({ id: c.id || uid(), q: c.q, a: c.a, status: null }))
+  };
+  return { decks: [d], current: d.id, mode: "all", reverse: false };
 }
 function save() {
-  try { localStorage.setItem(KEY, JSON.stringify(cards)); } catch {}
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
 }
-function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 
-const $ = id => document.getElementById(id);
+/* ---------- Helpers ---------- */
 
-function resetOrder() {
-  order = cards.map((_, i) => i);
-  if (pos >= order.length) pos = Math.max(0, order.length - 1);
+function deck() { return state.decks.find(d => d.id === state.current) || state.decks[0]; }
+function cardById(id) { return deck().cards.find(c => c.id === id); }
+function inMode(c) { return state.mode === "missed" ? c.status === "missed" : true; }
+function shuffleArr(a) {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+function buildSession() {
+  session = { ids: deck().cards.filter(inMode).map(c => c.id), pos: 0, done: false };
+  flipped = false;
+}
+function activeCard() {
+  return session.done ? null : cardById(session.ids[session.pos]) || null;
+}
+
+/* ---------- Rendering ---------- */
+
+function renderDecks() {
+  const sel = $("deckSel");
+  sel.innerHTML = "";
+  state.decks.forEach(d => {
+    const o = document.createElement("option");
+    o.value = d.id;
+    o.textContent = `${d.name} (${d.cards.length})`;
+    sel.appendChild(o);
+  });
+  sel.value = deck().id;
+  $("modeSel").value = state.mode;
+  $("reverseChk").checked = state.reverse;
+}
+
+function renderStats() {
+  const cs = deck().cards;
+  const got = cs.filter(c => c.status === "got").length;
+  const missed = cs.filter(c => c.status === "missed").length;
+  $("stats").textContent = cs.length
+    ? `${got} got it · ${missed} missed · ${cs.length - got - missed} new`
+    : "";
 }
 
 function renderCard() {
-  const card = $("card");
-  if (!cards.length) {
-    card.classList.remove("flipped");
-    $("frontLabel").textContent = "No cards yet";
-    $("frontContent").textContent = "Add one below to get started.";
-    $("frontHint").hidden = true;
-    $("backContent").textContent = "";
-    $("counter").textContent = "0 / 0";
-    ["prevBtn", "nextBtn", "shuffleBtn"].forEach(b => $(b).disabled = true);
-    return;
+  const d = deck();
+  const c = activeCard();
+  let label = "Question", backLabel = "Answer", front = "", back = "", hint = true;
+
+  if (!d.cards.length) {
+    label = "No cards yet"; front = "Add some below to get started."; hint = false;
+  } else if (!session.ids.length) {
+    label = "All clear"; front = "No missed cards in this deck. Switch to All cards to keep studying."; hint = false;
+  } else if (session.done) {
+    const ids = new Set(session.ids);
+    const cs = d.cards.filter(x => ids.has(x.id));
+    const got = cs.filter(x => x.status === "got").length;
+    const missed = cs.filter(x => x.status === "missed").length;
+    label = "Round complete";
+    front = missed ? `${got} got it, ${missed} missed` : `All ${got} correct. Nice work!`;
+    hint = false;
+  } else if (c) {
+    if (state.reverse) { label = "Answer"; backLabel = "Question"; front = c.a; back = c.q; }
+    else { front = c.q; back = c.a; }
   }
-  const c = cards[order[pos]];
-  card.classList.toggle("flipped", flipped);
-  $("frontLabel").textContent = "Question";
-  $("frontContent").textContent = c.q;
-  $("frontHint").hidden = false;
-  $("backContent").textContent = c.a;
-  $("counter").textContent = `${pos + 1} / ${order.length}`;
-  $("prevBtn").disabled = pos === 0;
-  $("nextBtn").disabled = pos === order.length - 1;
-  $("shuffleBtn").disabled = order.length < 2;
+  if (!c) flipped = false;
+
+  $("card").classList.toggle("flipped", flipped);
+  $("frontLabel").textContent = label;
+  $("frontContent").textContent = front;
+  $("frontHint").hidden = !hint;
+  $("backLabel").textContent = backLabel;
+  $("backContent").textContent = back;
+
+  const n = session.ids.length;
+  $("counter").textContent = n ? `${Math.min(session.pos + 1, n)} / ${n}` : "0 / 0";
+  $("prevBtn").disabled = !c || session.pos === 0;
+  $("nextBtn").disabled = !c || session.pos === n - 1;
+  $("shuffleBtn").disabled = n < 2;
+  $("rating").classList.toggle("show", !!c && flipped);
+  $("navControls").hidden = session.done;
+  $("doneActions").hidden = !session.done;
+  $("studyMissedBtn").hidden = !d.cards.some(x => x.status === "missed");
 }
 
-// Swap content while the card is off screen, snapping it back to the question side
+function renderList() {
+  const ul = $("list");
+  ul.innerHTML = "";
+  const cs = deck().cards;
+  if (!cs.length) {
+    ul.innerHTML = '<div class="empty">No cards in this deck yet.</div>';
+    return;
+  }
+  cs.forEach(c => {
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <div class="text"><div class="q"></div><div class="a"></div></div>
+      <div class="actions">
+        <span class="badge"></span>
+        <button data-act="edit">Edit</button>
+        <button data-act="del" class="danger">Delete</button>
+      </div>`;
+    li.querySelector(".q").textContent = c.q;
+    li.querySelector(".a").textContent = c.a;
+    const badge = li.querySelector(".badge");
+    const st = c.status || "new";
+    badge.classList.add(st);
+    badge.textContent = st === "got" ? "Got it" : st === "missed" ? "Missed" : "New";
+    li.querySelector('[data-act="edit"]').onclick = () => startEdit(c.id);
+    li.querySelector('[data-act="del"]').onclick = () => delCard(c.id);
+    ul.appendChild(li);
+  });
+}
+
+function renderAll() { renderDecks(); renderStats(); renderList(); renderCard(); }
+
+/* ---------- Animation ---------- */
+
+// Swap content while the card is off screen, snapping it to the front side
 function swapInstantly(update) {
   const card = $("card");
   card.classList.add("no-anim");
@@ -195,55 +367,17 @@ function swapInstantly(update) {
   card.classList.remove("no-anim");
 }
 
-function renderList() {
-  const ul = $("list");
-  ul.innerHTML = "";
-  if (!cards.length) {
-    ul.innerHTML = '<div class="empty">No cards yet.</div>';
-    return;
-  }
-  cards.forEach(c => {
-    const li = document.createElement("li");
-    li.innerHTML = `
-      <div class="text"><div class="q"></div><div class="a"></div></div>
-      <div class="actions">
-        <button data-act="edit">Edit</button>
-        <button data-act="del" class="danger">Delete</button>
-      </div>`;
-    li.querySelector(".q").textContent = c.q;
-    li.querySelector(".a").textContent = c.a;
-    li.querySelector('[data-act="edit"]').onclick = () => startEdit(c.id);
-    li.querySelector('[data-act="del"]').onclick = () => del(c.id);
-    ul.appendChild(li);
-  });
-}
-
-function render() { renderCard(); renderList(); }
-
-const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
-let animating = false;
-
-function flip() {
-  if (!cards.length || animating) return;
-  flipped = !flipped;
-  renderCard();
-}
-
-async function go(delta) {
-  const n = pos + delta;
-  if (n < 0 || n >= order.length || animating) return;
-  if (reduceMotion) { pos = n; flipped = false; renderCard(); return; }
-
+async function transition(update, dir = -1) {
+  if (reduceMotion) { update(); renderCard(); return; }
   animating = true;
   const stage = $("stage");
-  const dir = delta > 0 ? -1 : 1; // next slides left, prev slides right
   const out = stage.animate(
     [{ transform: "none", opacity: 1 },
      { transform: `translateX(${dir * 90}px) rotate(${dir * 5}deg)`, opacity: 0 }],
     { duration: 200, easing: "ease-in", fill: "forwards" }
   );
   await out.finished;
-  swapInstantly(() => { pos = n; flipped = false; });
+  swapInstantly(update);
   const inn = stage.animate(
     [{ transform: `translateX(${-dir * 90}px) rotate(${-dir * 5}deg)`, opacity: 0 },
      { transform: "none", opacity: 1 }],
@@ -254,17 +388,35 @@ async function go(delta) {
   animating = false;
 }
 
-async function shuffle() {
-  if (animating || order.length < 2) return;
-  for (let i = order.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [order[i], order[j]] = [order[j], order[i]];
-  }
-  if (reduceMotion) { pos = 0; flipped = false; renderCard(); return; }
+/* ---------- Study actions ---------- */
 
+function flip() {
+  if (animating || !activeCard()) return;
+  flipped = !flipped;
+  renderCard();
+}
+
+function go(delta) {
+  const n = session.pos + delta;
+  if (animating || !activeCard() || n < 0 || n >= session.ids.length) return;
+  transition(() => { session.pos = n; flipped = false; }, delta > 0 ? -1 : 1);
+}
+
+function rate(status) {
+  const c = activeCard();
+  if (animating || !c || !flipped) return;
+  c.status = status;
+  save(); renderStats(); renderList(); renderDecks();
+  if (session.pos < session.ids.length - 1) go(1);
+  else transition(() => { session.done = true; flipped = false; });
+}
+
+async function shuffle() {
+  if (animating || session.ids.length < 2) return;
+  shuffleArr(session.ids);
+  if (reduceMotion) { session.pos = 0; session.done = false; flipped = false; renderCard(); return; }
   animating = true;
-  const stage = $("stage");
-  const wobble = stage.animate(
+  const wobble = $("stage").animate(
     [{ transform: "none" },
      { transform: "translateX(-14px) rotate(-4deg)" },
      { transform: "translateX(12px) rotate(4deg) scale(.96)", opacity: .6 },
@@ -272,13 +424,88 @@ async function shuffle() {
      { transform: "none", opacity: 1 }],
     { duration: 500, easing: "ease-in-out" }
   );
-  setTimeout(() => swapInstantly(() => { pos = 0; flipped = false; }), 250);
+  setTimeout(() => swapInstantly(() => { session.pos = 0; session.done = false; flipped = false; }), 250);
   await wobble.finished;
   animating = false;
 }
 
+function restart() {
+  if (animating) return;
+  transition(() => buildSession());
+}
+
+function studyMissed() {
+  if (animating) return;
+  state.mode = "missed";
+  $("modeSel").value = "missed";
+  save();
+  transition(() => { buildSession(); shuffleArr(session.ids); });
+}
+
+$("card").onclick = flip;
+$("prevBtn").onclick = () => go(-1);
+$("nextBtn").onclick = () => go(1);
+$("shuffleBtn").onclick = shuffle;
+$("missBtn").onclick = () => rate("missed");
+$("gotBtn").onclick = () => rate("got");
+$("restartBtn").onclick = restart;
+$("studyMissedBtn").onclick = studyMissed;
+
+$("modeSel").onchange = e => {
+  state.mode = e.target.value;
+  save(); buildSession(); renderCard();
+};
+$("reverseChk").onchange = e => {
+  state.reverse = e.target.checked;
+  flipped = false;
+  save(); renderCard();
+};
+
+document.addEventListener("keydown", e => {
+  const tag = e.target.tagName;
+  if (["INPUT", "TEXTAREA", "SELECT"].includes(tag)) return;
+  if ((e.key === " " || e.key === "Enter") && tag !== "BUTTON") { e.preventDefault(); flip(); }
+  else if (e.key === "ArrowRight") go(1);
+  else if (e.key === "ArrowLeft") go(-1);
+  else if (e.key === "1") rate("missed");
+  else if (e.key === "2") rate("got");
+});
+
+/* ---------- Decks ---------- */
+
+function switchDeck(id) {
+  state.current = id;
+  endEdit();
+  save(); buildSession(); renderAll();
+}
+$("deckSel").onchange = e => switchDeck(e.target.value);
+
+$("newDeckBtn").onclick = () => {
+  const name = (prompt("Name for the new deck:") || "").trim();
+  if (!name) return;
+  const d = { id: uid(), name, cards: [] };
+  state.decks.push(d);
+  switchDeck(d.id);
+};
+$("renameDeckBtn").onclick = () => {
+  const d = deck();
+  const name = (prompt("Rename deck:", d.name) || "").trim();
+  if (!name) return;
+  d.name = name;
+  save(); renderDecks();
+};
+$("deleteDeckBtn").onclick = () => {
+  const d = deck();
+  if (!confirm(`Delete "${d.name}" and its ${d.cards.length} cards? This can't be undone.`)) return;
+  state.decks = state.decks.filter(x => x.id !== d.id);
+  if (!state.decks.length) state.decks.push({ id: uid(), name: "My cards", cards: [] });
+  switchDeck(state.decks[0].id);
+};
+
+/* ---------- Cards ---------- */
+
 function startEdit(id) {
-  const c = cards.find(x => x.id === id);
+  const c = cardById(id);
   if (!c) return;
   editingId = id;
   $("qInput").value = c.q;
@@ -295,11 +522,24 @@ function endEdit() {
   $("saveBtn").textContent = "Add card";
   $("cancelEdit").hidden = true;
 }
-function del(id) {
+function addCard(q, a) {
+  const c = { id: uid(), q, a, status: null };
+  deck().cards.push(c);
+  if (inMode(c) && !session.done) session.ids.push(c.id);
+}
+function delCard(id) {
   if (!confirm("Delete this card?")) return;
-  cards = cards.filter(c => c.id !== id);
+  const d = deck();
+  d.cards = d.cards.filter(c => c.id !== id);
+  const idx = session.ids.indexOf(id);
+  if (idx >= 0) {
+    if (idx === session.pos) flipped = false;
+    session.ids.splice(idx, 1);
+    if (idx < session.pos) session.pos--;
+    if (session.pos >= session.ids.length) session.pos = Math.max(0, session.ids.length - 1);
+  }
   if (editingId === id) endEdit();
-  save(); resetOrder(); flipped = false; render();
+  save(); renderAll();
 }
 
 $("cardForm").onsubmit = e => {
@@ -308,35 +548,48 @@ $("cardForm").onsubmit = e => {
   const a = $("aInput").value.trim();
   if (!q || !a) return;
   if (editingId) {
-    const c = cards.find(x => x.id === editingId);
+    const c = cardById(editingId);
     if (c) { c.q = q; c.a = a; }
     endEdit();
   } else {
-    cards.push({ id: uid(), q, a });
+    addCard(q, a);
     $("cardForm").reset();
     $("qInput").focus();
   }
-  save(); resetOrder(); render();
+  save(); renderAll();
 };
 $("cancelEdit").onclick = endEdit;
 
-$("card").onclick = flip;
-$("prevBtn").onclick = () => go(-1);
-$("nextBtn").onclick = () => go(1);
-$("shuffleBtn").onclick = shuffle;
+$("bulkBtn").onclick = () => {
+  let added = 0, skipped = 0;
+  for (const line of $("bulkInput").value.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    const m = line.match(/^(.*?)\s*(?:\||\t)\s*(.*)$/);
+    if (!m || !m[1].trim() || !m[2].trim()) { skipped++; continue; }
+    addCard(m[1].trim(), m[2].trim());
+    added++;
+  }
+  if (added) $("bulkInput").value = "";
+  $("bulkMsg").textContent =
+    `Added ${added} card${added === 1 ? "" : "s"}` +
+    (skipped ? `, skipped ${skipped} line${skipped === 1 ? "" : "s"} without a | or tab.` : ".");
+  save(); renderAll();
+};
 
-document.addEventListener("keydown", e => {
-  if (["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
-  if (e.key === " " || e.key === "Enter") { e.preventDefault(); flip(); }
-  else if (e.key === "ArrowRight") go(1);
-  else if (e.key === "ArrowLeft") go(-1);
-});
+$("resetProgressBtn").onclick = () => {
+  if (!confirm("Clear Got it / Missed marks for every card in this deck?")) return;
+  deck().cards.forEach(c => c.status = null);
+  save(); buildSession(); renderAll();
+};
+
+/* ---------- Backup ---------- */
 
 $("exportBtn").onclick = () => {
-  const blob = new Blob([JSON.stringify(cards, null, 2)], { type: "application/json" });
+  const data = { version: 2, decks: state.decks };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "flashcards.json";
+  a.download = "flashcards-backup.json";
   a.click();
   URL.revokeObjectURL(a.href);
 };
@@ -344,24 +597,40 @@ $("importBtn").onclick = () => $("importFile").click();
 $("importFile").onchange = async e => {
   const file = e.target.files[0];
   if (!file) return;
+  const clean = arr => arr
+    .filter(c => c && typeof c.q === "string" && typeof c.a === "string")
+    .map(c => ({ id: uid(), q: c.q, a: c.a,
+                 status: c.status === "got" || c.status === "missed" ? c.status : null }));
   try {
     const data = JSON.parse(await file.text());
-    if (!Array.isArray(data)) throw new Error();
-    const incoming = data
-      .filter(c => c && typeof c.q === "string" && typeof c.a === "string")
-      .map(c => ({ id: uid(), q: c.q, a: c.a }));
-    const replace = cards.length && confirm(
-      `Import ${incoming.length} cards.\n\nOK = replace current cards\nCancel = add to current cards`
-    );
-    cards = replace ? incoming : cards.concat(incoming);
-    save(); pos = 0; flipped = false; resetOrder(); render();
+    let added = 0;
+    if (Array.isArray(data)) {
+      // Old single-deck export: add to the current deck
+      const cs = clean(data);
+      deck().cards.push(...cs);
+      added = cs.length;
+    } else if (data && Array.isArray(data.decks)) {
+      // Multi-deck export: merge into decks with the same name, or create them
+      for (const dk of data.decks) {
+        if (!dk || !Array.isArray(dk.cards)) continue;
+        const cs = clean(dk.cards);
+        const name = String(dk.name || "Imported deck");
+        const existing = state.decks.find(x => x.name === name);
+        if (existing) existing.cards.push(...cs);
+        else state.decks.push({ id: uid(), name, cards: cs });
+        added += cs.length;
+      }
+    } else throw new Error();
+    save(); buildSession(); renderAll();
+    alert(`Imported ${added} card${added === 1 ? "" : "s"}.`);
   } catch {
     alert("That file doesn't look like a flashcards export.");
   }
   e.target.value = "";
 };
 
-render();
+buildSession();
+renderAll();
 </script>
 </body>
 </html>
